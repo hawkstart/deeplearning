@@ -2,6 +2,30 @@ import torch.nn as nn
 from collections import OrderedDict
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class C1(nn.Module):
     def __init__(self):
         super(C1, self).__init__()
@@ -66,7 +90,7 @@ class F5(nn.Module):
 
         self.f5 = nn.Sequential(OrderedDict([
             ('f5', nn.Linear(84, 10)),
-            ('sig5', nn.LogSoftmax(dim=-1))
+            ('sig5', nn.ReLU())
         ]))
 
     def forward(self, img):

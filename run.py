@@ -7,6 +7,74 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 import visdom
 import onnx
+import torch.nn.functional as F
+
+
+
+
+
+
+
+# 自定义损失函数
+
+
+class MyCustomLoss(nn.Module):
+    def __init__(self):
+        super(MyCustomLoss, self).__init__()
+
+    def forward(self, output, labels, epoch):
+        # 将标签转换为热编码
+        labels= F.one_hot(labels, num_classes=10)
+        # 计算损失函数
+        evidence_vector=output+1.0
+        S=evidence_vector.sum(dim=1)
+        S_temp=S+1
+        P=evidence_vector/S[:,None]
+        L1=(labels-P)**2+P*(1-P)/S_temp[:,None]
+
+        # 计算正则项
+        a=labels+(1.0-labels)*evidence_vector
+        a_addrow=a.sum(dim=1)
+        a_addrow_digamma=torch.special.digamma(a_addrow)
+        L2_2_temp=(a-1.0)*(torch.special.digamma(a)-a_addrow_digamma[:,None])
+        L2_2=L2_2_temp.sum(dim=1)
+
+
+        a_addrow_gamma=torch.special.gamma(a_addrow)
+        a_gamma=torch.special.gamma(a)
+        a_gamma_prod=torch.prod(a_gamma, dim=1)
+        L2_1_temp1=a_addrow_gamma/torch.special.gamma(10)
+        L2_1_temp2=L2_1_temp1/a_gamma_prod
+        L2_1=torch.log(L2_1_temp2)
+        L2=L2_1+L2_2
+
+        # 参数lamda
+        t=epoch/10
+        lamda=torch.min(1.0,t)
+        loss_temp=L1+lamda*L2
+        loss=torch.sum(loss_temp)
+
+
+        return loss
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 viz = visdom.Visdom()
 
@@ -25,7 +93,7 @@ data_train_loader = DataLoader(data_train, batch_size=256, shuffle=True, num_wor
 data_test_loader = DataLoader(data_test, batch_size=1024, num_workers=8)
 
 net = LeNet5()
-criterion = nn.CrossEntropyLoss()
+criterion = MyCustomLoss()
 optimizer = optim.Adam(net.parameters(), lr=2e-3)
 
 cur_batch_win = None
@@ -47,7 +115,7 @@ def train(epoch):
 
         output = net(images)
 
-        loss = criterion(output, labels)
+        loss = criterion(output, labels, epoch)
 
         loss_list.append(loss.detach().cpu().item())
         batch_list.append(i+1)
